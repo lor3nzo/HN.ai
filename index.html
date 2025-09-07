@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hacker News — AI / LLM / ChatGPT</title>
+  <meta name="description" content="HN reader for AI/LLM/ChatGPT — compact UI, 2x2 mobile, robust OR search.">
+  <style>
+    :root { --bg:#f6f7fb; --panel:#f2f4f9; --card:#ffffff; --text:#111318; --muted:#5c6473; --line:#e7e9f0; --brand:#ff6600; --shadow:0 16px 36px rgba(8,14,30,.08); }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    a{color:inherit;text-decoration:none} a:hover{text-decoration:underline}
+    header{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.92);border-bottom:1px solid var(--line);backdrop-filter:saturate(140%) blur(8px)}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px 20px}
+    .hero{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(145deg,#ff8a33,#ff6600);box-shadow:0 6px 18px rgba(255,102,0,.22);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;line-height:1.1;font-weight:700;text-align:center;flex-direction:column;letter-spacing:.02em}
+    .title{font-weight:700;font-size:18px}
+    .muted{color:var(--muted);font-size:12px}
+    .controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+    .control{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;box-shadow:var(--shadow)}
+    .control label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+    select{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;font-size:14px;line-height:1.2}
+    @media (max-width:900px){ .controls{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    main{padding:16px 20px}
+    .board{display:grid;gap:12px}
+    .item{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+    .head{display:flex;gap:10px;align-items:flex-start}
+    .badge{background:rgba(255,102,0,.12);color:#ff6600;border:1px solid rgba(255,102,0,.35);font-weight:600;font-size:11px;padding:3px 8px;border-radius:999px;white-space:nowrap}
+    .item .title a{font-weight:600;font-size:16px}
+    .meta{color:var(--muted);font-size:12px;margin-top:4px}
+    .foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    .empty{color:var(--muted);text-align:center;padding:32px;border:1px dashed var(--line);border-radius:12px}
+    .pager{display:flex;justify-content:space-between;align-items:center;margin:16px 0}
+    .pageinfo{color:var(--muted);font-size:13px}
+    .btnrow{display:flex;gap:8px}
+  </style>
+  <!-- Favicons -->
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="hero">
+        <div class="brand">
+          <div class="logo"><div>The</div><div>ONE</div></div>
+          <div>
+            <div class="title">Hacker News — AI · LLM · ChatGPT</div>
+            <div class="muted">A calm, focused reader</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls" role="region" aria-label="Filters">
+        <div class="control">
+          <label for="sort">Search by</label>
+          <select id="sort">
+            <option value="popularity">Popularity</option>
+            <option value="date" selected>Date</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="sortlocal">Sort by</label>
+          <select id="sortlocal">
+            <option value="date" selected>Date</option>
+            <option value="points">Points</option>
+            <option value="comments">Comments</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="range">Search for</label>
+          <select id="range">
+            <option value="all">All Time</option>
+            <option value="24h" selected>Last 24h</option>
+            <option value="week">Past Week</option>
+            <option value="month">Past Month</option>
+            <option value="year">Past Year</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="perpage">Results per page</label>
+          <select id="perpage">
+            <option>20</option>
+            <option selected>30</option>
+            <option>50</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="results" class="board" aria-live="polite" aria-busy="false"></section>
+
+    <div class="pager">
+      <div class="pageinfo" id="pageinfo"></div>
+      <div class="btnrow">
+        <button id="prev">◀ Prev</button>
+        <button id="next">Next ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function(){
+    var sortSel=document.getElementById('sort');
+    var sortLocalSel=document.getElementById('sortlocal');
+    var rangeSel=document.getElementById('range');
+    var perpageSel=document.getElementById('perpage');
+    var resultsEl=document.getElementById('results');
+    var prevBtn=document.getElementById('prev');
+    var nextBtn=document.getElementById('next');
+    var pageinfoEl=document.getElementById('pageinfo');
+    var state={page:0,nbPages:0,nbHits:0};
+
+    function toUnix(ms){return Math.floor(ms/1000);} function nowUnix(){return toUnix(Date.now());}
+    function rangeCutoff(range){var now=nowUnix();if(range==='24h')return now-86400;if(range==='week')return now-7*86400;if(range==='month')return now-30*86400;if(range==='year')return now-365*86400;return 0;}
+
+    function escapeHtml(s){return String(s).replace(/[&<>\"']/g,function(m){var map={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'};return map[m]||m;});}
+    function timeAgo(iso){var s=Math.floor((Date.now()-new Date(iso).getTime())/1000);function r(n,u){return n+' '+u+(n>1?'s':'')+' ago';}if(s<60)return r(s,'sec');var m=Math.floor(s/60);if(m<60)return r(m,'min');var h=Math.floor(m/60);if(h<24)return r(h,'hour');var d=Math.floor(h/24);if(d<7)return r(d,'day');var w=Math.floor(d/7);if(w<5)return r(w,'week');var mo=Math.floor(d/30);if(mo<12)return r(mo,'month');var y=Math.floor(d/365);return r(y,'year');}
+    function updatePages(page,nbPages,nbHits){var t='Page '+(page+1)+' / '+(nbPages||1)+' · '+nbHits+' hits';pageinfoEl.textContent=t;prevBtn.disabled=page<=0;nextBtn.disabled=page>=nbPages-1;}
+
+    function render(items){
+      resultsEl.innerHTML='';
+      if(!items.length){resultsEl.innerHTML='<div class="empty">No results. Try switching range or sort.</div>';return;}
+      for(var i=0;i<items.length;i++){
+        var it=items[i];
+        var url=it.url||('https://news.ycombinator.com/item?id='+(it.objectID||''));
+        var title=it.title||'(no title)';
+        var host='news.ycombinator.com'; try{host=new URL(url).hostname.replace('www.','');}catch(e){}
+        var article=document.createElement('article');
+        article.className='item';
+        article.innerHTML=
+          '<div class="head">'+
+            '<span class="badge">'+host+'</span>'+
+            '<div class="title"><a href="'+url+'" target="_blank" rel="noopener">'+escapeHtml(title)+'</a></div>'+
+          '</div>'+
+          '<div class="meta">'+
+            (it.points||0)+' points · '+(it.num_comments||0)+' comments · by '+escapeHtml(it.author||'unknown')+' · '+timeAgo(it.created_at)+
+          '</div>'+
+          '<div class="foot">'+
+            '<a href="https://news.ycombinator.com/item?id='+(it.objectID||'')+'" target="_blank" rel="noopener">HN thread</a>'+
+            '<span>•</span>'+
+            '<a href="https://news.ycombinator.com/from?site='+host+'" target="_blank" rel="noopener">More from '+host+'</a>'+
+          '</div>';
+        resultsEl.appendChild(article);
+      }
+    }
+
+    function uniqByObjectID(list){var seen={},out=[];for(var i=0;i<list.length;i++){var id=list[i].objectID||('id:'+list[i].id);if(!seen[id]){seen[id]=1;out.push(list[i]);}}return out;}
+
+    function buildURL(term,apiSort,range,perpage,page){
+      var base='https://hn.algolia.com/api/v1/';
+      var path=(apiSort==='date')?'search_by_date':'search';
+      var params=[];
+      params.push('tags=story');
+      // Broaden search scope so we definitely get hits; we'll filter by title client-side.
+      // params.push('restrictSearchableAttributes=title'); // removed
+      params.push('query='+encodeURIComponent(term));
+      params.push('hitsPerPage='+encodeURIComponent(perpage));
+      params.push('page='+encodeURIComponent(page));
+      if(range!=='all'){params.push('numericFilters='+encodeURIComponent('created_at_i>'+rangeCutoff(range)));}
+      return base+path+'?'+params.join('&');
+    }
+
+    function fetchTerm(term,apiSort,range,perpage,page){
+      var url=buildURL(term,apiSort,range,perpage,page);
+      console.log('GET', url);
+      return fetch(url).then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+        .then(function(json){ return json.hits||[]; })
+        .catch(function(e){ console.warn('Fetch error for', term, e); return []; });
+    }
+
+    function applyLocalSort(list,mode){
+      if(mode==='comments'){ list.sort(function(a,b){return (b.num_comments||0)-(a.num_comments||0);}); }
+      else if(mode==='points'){ list.sort(function(a,b){return (b.points||0)-(a.points||0);}); }
+      else { list.sort(function(a,b){return new Date(b.created_at).getTime()-new Date(a.created_at).getTime();}); }
+    }
+
+    function fetchAndRender(){
+      var apiSort=sortSel.value;
+      var localSort=sortLocalSel.value;
+      var range=rangeSel.value;
+      var perpage=parseInt(perpageSel.value,10);
+      var page=state.page;
+      resultsEl.setAttribute('aria-busy','true');
+
+      // Over-fetch so union has enough to paginate
+      var fetchSize = perpage*3;
+
+      Promise.all([
+        fetchTerm('ai', apiSort, range, fetchSize, page),
+        fetchTerm('llm', apiSort, range, fetchSize, page),
+        fetchTerm('chatgpt', apiSort, range, fetchSize, page)
+      ]).then(function(arrays){
+        var merged=[].concat(arrays[0],arrays[1],arrays[2]);
+        var rx=/(^|\b)(ai|llm)\b|chatgpt/i;
+        merged=merged.filter(function(h){return rx.test(h.title||'');});
+        merged=uniqByObjectID(merged);
+
+        // If nothing in 24h, gently broaden to week (silent fallback)
+        if(!merged.length && range==='24h'){
+          console.log('No 24h results; retrying Past Week silently.');
+          return Promise.all([
+            fetchTerm('ai', apiSort, 'week', fetchSize, 0),
+            fetchTerm('llm', apiSort, 'week', fetchSize, 0),
+            fetchTerm('chatgpt', apiSort, 'week', fetchSize, 0)
+          ]).then(function(arr2){
+            var m=[].concat(arr2[0],arr2[1],arr2[2]);
+            m=m.filter(function(h){return rx.test(h.title||'');});
+            m=uniqByObjectID(m);
+            return {merged:m, broadened:true};
+          });
+        }
+        return {merged:merged, broadened:false};
+      }).then(function(result){
+        var merged = result.merged || [];
+        applyLocalSort(merged, sortLocalSel.value);
+        var nbHits=merged.length;
+        var perpage=parseInt(perpageSel.value,10);
+        var nbPages=Math.max(1,Math.ceil(nbHits/perpage));
+        var page=state.page;
+        var start=page*perpage;
+        var pageItems=merged.slice(start,start+perpage);
+        state.nbPages=nbPages; state.nbHits=nbHits;
+        render(pageItems); updatePages(page,nbPages,nbHits);
+        if(result.broadened){ pageinfoEl.textContent += ' · (showing Past Week fallback)'; }
+      }).catch(function(err){
+        resultsEl.innerHTML='<div class="empty">Error loading results: '+String((err&&err.message)||err)+'</div>';
+      }).finally(function(){
+        resultsEl.setAttribute('aria-busy','false');
+      });
+    }
+
+    sortSel.addEventListener('change',function(){state.page=0;fetchAndRender();});
+    sortLocalSel.addEventListener('change',function(){state.page=0;fetchAndRender();});
+    rangeSel.addEventListener('change',function(){state.page=0;fetchAndRender();});
+    perpageSel.addEventListener('change',function(){state.page=0;fetchAndRender();});
+    prevBtn.addEventListener('click',function(){if(state.page>0){state.page--;fetchAndRender();}});
+    nextBtn.addEventListener('click',function(){state.page++;fetchAndRender();});
+
+    fetchAndRender();
+  })();
+  </script>
+</body>
+</html>
